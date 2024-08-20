@@ -2,36 +2,48 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 
 async function scrapeLogic(res) {
-  const browser = await puppeteer.launch({
-    headless: false,
-    defaultViewport: null,
-  });
+  let browser;
 
-  const page = await browser.newPage();
-  await page.goto('https://www.facebook.com/');
-  
-  console.log('Please log in to Facebook manually.');
+  try {
+    console.log('Launching browser...');
+    browser = await puppeteer.launch({
+      headless: false, // Set to true to run in headless mode
+      defaultViewport: null,
+    });
 
-  let foundFrCookie = false;
+    const page = await browser.newPage();
+    console.log('Navigating to Facebook...');
+    await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2' });
+    
+    console.log('Please log in to Facebook manually.');
 
-  while (!foundFrCookie) {
-    const cookies = await page.cookies();
+    let foundFrCookie = false;
 
-    foundFrCookie = cookies.some(cookie => cookie.name === 'c_user');
+    while (!foundFrCookie) {
+      console.log('Checking for "c_user" cookie...');
+      const cookies = await page.cookies();
 
-    if (foundFrCookie) {
-      console.log('"c_user" cookie detected! Saving all cookies.');
+      foundFrCookie = cookies.some(cookie => cookie.name === 'c_user');
 
-      const cookieJSON = JSON.stringify(cookies, null, 2);
-      fs.writeFileSync('facebookCookies.json', cookieJSON);
+      if (foundFrCookie) {
+        console.log('"c_user" cookie detected! Saving all cookies.');
 
-      console.log('Cookies have been saved to facebookCookies.json');
-      
+        const cookieJSON = JSON.stringify(cookies, null, 2);
+        fs.writeFileSync('facebookCookies.json', cookieJSON);
+
+        console.log('Cookies have been saved to facebookCookies.json');
+        break;
+      } else {
+        console.log('"c_user" cookie not found, checking again in 3 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
+
+  } catch (error) {
+    console.error('Error during scraping:', error);
+  } finally {
+    if (browser) {
       await browser.close();
-      return; // Exit the function after closing the browser
-    } else {
-      console.log('"c_user" cookie not found, checking again in 3 seconds...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
 }
